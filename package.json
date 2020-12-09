@@ -1,0 +1,19 @@
+{
+  "name": "api-whatsapp",
+  "version": "1.0.0",
+  "description": "API de envios de Mensagens para Whatsapp",
+  "main": "index.js",
+  "scripts": {
+    "test": "node index.js"
+  },
+  "author": "Eduardo Policarpo",
+  "license": "ISC",
+  "dependencies": {
+    "fs": "0.0.1-security",
+    "mysql": "^2.18.1",
+    "mysql2": "^2.2.5",
+    "oracledb": "^5.0.0",
+    "path": "^0.12.7",
+    "venom-bot": "^2.1.2"
+  }
+}
