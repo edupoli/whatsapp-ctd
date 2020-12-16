@@ -40,47 +40,15 @@ function getUsuario(query, params, callback) {
         }
     );
 }
+let pool = mysql.createPool({
+    connectionLimit: 20,
+    host: '10.0.2.9',
+    port: 3306,
+    user: 'ura',
+    password: 'ask123',
+    database: 'chamados'
+});
 
-function connection_MySQL() {
-    return mysql.createConnection({
-        host: '10.0.2.9',
-        port: 3306,
-        user: 'ura',
-        password: 'ask123',
-        database: 'chamados'
-    });
-};
-
-//função de conecxao ao MySQL utilizando mysql2 que da suporte nativo a Promise
-async function connect() {
-    if (global.connection && global.connection.state !== 'disconnected')
-        return global.connection;
-
-    const mysql = require("mysql2/promise");       //mysql://usuario:senha@servidor:porta/banco
-    const connection = await mysql.createConnection("mysql://ura:ask123@10.0.2.9:3306/chamados");
-    console.log("Conectou no MySQL!");
-    global.connection = connection;
-    return connection;
-}
-
-function executeSQLQueryParams_MySQL(sql, params, callback) {
-    const conn = connection_MySQL();
-    conn.query(sql, params, (error, results, fields) => {
-        callback(error, results, fields);
-        conn.end();
-    });
-};
-function executeSQLQuery_MySQL(sql, callback) {
-    const conn = connection_MySQL();
-    conn.query(sql, (error, results, fields) => {
-        callback(error, results, fields);
-        conn.end();
-    });
-};
-
-exports.connect = connect;
-exports.connection_MySQL = connection_MySQL;
-exports.executeSQLQuery_MySQL = executeSQLQuery_MySQL;
-exports.executeSQLQueryParams_MySQL = executeSQLQueryParams_MySQL;
+exports.pool = pool;
 exports.getUsuario = getUsuario;
 

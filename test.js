@@ -1,3 +1,4 @@
+/*
 const oracledb = require('oracledb');
 oracledb.outFormat = oracledb.OUT_FORMAT_OBJECT;
 
@@ -42,7 +43,7 @@ exports.getFuncionario = getFuncionario;
 
 
 
-/*
+
 async function getResults(id) {
     return new Promise(async function (resolve, reject) {
         await connection.execute('SELECT * FROM cad_usuario WHERE cd_re = :id', [id], (error, result) => {
@@ -64,3 +65,33 @@ return response;
 
 getResults(1742);
 */
+const mysql = require('mysql');
+
+connection = mysql.createConnection({
+    host: '10.0.2.9',
+    port: 3306,
+    user: 'ura',
+    password: 'ask123',
+    database: 'chamados'
+});
+
+const results = sqlQuery()
+
+function sqlQuery() {
+    return new Promise((resolve, reject) => {
+        connection.query('SELECT MAX(numero) as numero FROM chamado', function (error, results, fields) {
+            if (error) {
+                console.log(error)
+                //Rejeita a promessa
+                reject(error)
+            }
+            connection.end()
+            //Conclui a promessa
+            resolve(results)
+        })
+    })
+}
+
+//console.log(results.numero) // Promise
+results.then(r) // Os valores
+console.log(r)

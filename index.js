@@ -4,6 +4,60 @@ const con = require('./conexao');
 const fs = require('fs');
 const mime = require('mime-types');
 const path = require('path');
+const dialogflow = require('@google-cloud/dialogflow');
+
+const sessionClient = new dialogflow.SessionsClient({ keyFilename: "./teste-qrscuw-82dcc41e32a9.json" });
+
+async function detectIntent(
+    projectId,
+    sessionId,
+    query,
+    contexts,
+    languageCode
+) {
+    const sessionPath = sessionClient.projectAgentSessionPath(
+        projectId,
+        sessionId
+    );
+    const request = {
+        session: sessionPath,
+        queryInput: {
+            text: {
+                text: query,
+                languageCode: languageCode,
+            },
+        },
+    };
+
+    if (contexts && contexts.length > 0) {
+        request.queryParams = {
+            contexts: contexts,
+        };
+    }
+
+    const responses = await sessionClient.detectIntent(request);
+    return responses[0];
+}
+async function executeQueries(projectId, sessionId, queries, languageCode) {
+    let context;
+    let intentResponse;
+    for (const query of queries) {
+        try {
+            console.log(`Sending Query: ${query}`);
+            intentResponse = await detectIntent(
+                projectId,
+                sessionId,
+                query,
+                context,
+                languageCode
+            );
+            console.log('Detected intent');
+            return `${intentResponse.queryResult.fulfillmentText}`
+        } catch (error) {
+            console.log(error);
+        }
+    }
+}
 
 Whatsapp
     .create('API-Whatsapp',
@@ -27,30 +81,35 @@ Whatsapp
             debug: false,
             logQR: true,
             browserArgs: ['--no-sandbox'],
-            disableSpins: false,
             disableWelcome: true,
-            updatesLog: true,
+            updatesLog: false,
             autoClose: 60000,
             createPathFileToken: true,
         })
     .then((client) => start(client))
-    .catch((erro) => {
-        console.log(erro);
-    });
+    .catch((erro) => { console.log(erro) });
+
+Whatsapp.defaultLogger.level = 'error';
 
 function start(client) {
     client.onMessage(async (message) => {
+        if (typeof message != "undefined") {
+            client.startTyping(message.from);
+        }
+        if (getStage(message.from) === 11) {
 
+        }
+        //console.log(message);
         if (getStage(message.from) === 0 && message.isGroupMsg === false) {
             client.sendText(message.from,
                 'Seja bem vindo ao sistema de 🛠️ Suporte de Informática da CTD 🖥️ \n' +
                 'Por favor informe seu RE'
             );
             let data = new Date();
-            dados[message.from].stage = 1;
-            console.log("Estagio " + dados[message.from].stage);
             var telefone = ((String(`${message.from}`).split('@')[0]).substr(2));
             dados[message.from].itens.push(data.toLocaleString(), 'ABERTO', telefone);
+            dados[message.from].stage = 1;
+            console.log("Estagio " + dados[message.from].stage);
             console.log(getItens(message.from));
             return
         }
@@ -124,6 +183,37 @@ function start(client) {
                 return
             }
         }
+        if (getStage(message.from) === 3 && message.body === "6") {
+            dados[message.from].stage = 11;
+            client.sendText(message.from, 'Nesta opção voce pode fazer uma pergunta qualquer \n' +
+                'Para voltar ao menu inicial digite #️⃣'
+            )
+            return
+        }
+        if (getStage(message.from) === 11 && message.body != '#') {
+            let textoResposta = await executeQueries("teste-qrscuw", message.from, [message.body], 'pt-BR')
+            await client.sendText(message.from, textoResposta);
+        }
+        if (getStage(message.from) === 11 && message.body === '#') {
+            dados[message.from].stage = 3;
+            client.sendText(message.from,
+                `Sobre qual assunto você deseja atendimento ? \n` +
+                `Por favor *escolha uma opção:*\n\n` +
+                `*MENU PRINCIPAL*\n` +
+                `⚒️ *1* - Abertura de Chamado. \n` +
+                `🔍 *2* - Consultar Chamado. \n` +
+                `🔥 *3* - Dificuldade de Acesso a Sistemas. \n` +
+                `🔑 *4* - Alteração de Senhas. \n` +
+                `☎️ *5* - Telefonia. \n` +
+                `🧠 *6* - Machine Learning e Inteligência Artificial. \n` +
+                `🔎 *7* - Consultar Ramais. \n` +
+                `✍🏼 *8* - Criticas ou Elogios. \n\n\n` +
+
+                `A qualquer momento durante a navegação pelos Menus, envie a palavra *VOLTAR* \n` +
+                `para retornar ao *Menu Anterior* e envie *SAIR* para finalizar o atendimento`
+            );
+            return
+        }
 
         if (getStage(message.from) === 3 && message.body === "1") {
             dados[message.from].stage = 4;
@@ -186,7 +276,7 @@ function start(client) {
 
         if (getStage(message.from) === 6) {
             let msg = message.body;
-            if ((msg.toLowerCase() != "sim") && (msg.toLowerCase() != "não" || msg.toLowerCase() != "nao")) {
+            if ((msg.toLowerCase() != "sim") && (msg.toLowerCase() != "não" && msg.toLowerCase() != "nao")) {
                 client.sendText(message.from,
                     "❌ Opção inválida, Responda *SIM* para confirmar 👍🏼 ou *NÃO* para não enviar arquivos 👎🏼"
                 );
@@ -221,34 +311,61 @@ function start(client) {
                 return
             }
             if (message.body === "#") {
-                var data = [dados[message.from].itens];
-                let sql = "INSERT INTO chamado (`data_abertura`,`status`,`num_whatsapp`,`re`,`nome`,`ramal`,`email`,`setor`,`opcao_menu`,`descricao`) VALUES ?";
-                con.executeSQLQueryParams_MySQL(sql, [data], (error, results, fields) => {
-                    if (error) {
-                        console.log(error);
-                    }
-                    else {
-                        client.sendText(message.from,
-                            "👏🏻👏🏻 Seu Chamado foi aberto com Sucesso e registrado com Nº *xxxxxx* ✅ " +
-                            "A equipe de informática irá analisar e respondera o mais breve possivel.\n" +
-                            "Voce podera acompanhar o andamento da solicitação , com o numero do chamado " +
-                            "Na *Opção 2* do Menu Principal.\n\n\n" +
-                            "Agradecemos por utilzar nossos serviços.\n\n" +
-                            "👋🏼👋🏼 Ate logo."
-                        );
-                        dados[message.from].stage = 0;
-                        for (let index = 0; index < dados[message.from].itens.length; index++) {
-                            dados[message.from].itens.pop();
+                var data = new Array(getItens(message.from));
+                con.pool.getConnection(function (err, connection) {
+                    if (err) throw err; // not connected!
+                    connection.beginTransaction(function (err) {
+                        if (err) {
+                            throw err;
                         }
-                        return
-                    }
-                });
+                        else {
+                            let sql = 'INSERT INTO chamado(numero, data_abertura,' +
+                                ' status, num_whatsapp, re, nome, ramal, email, setor,' +
+                                ' opcao_menu, descricao) select max(numero) + 1 as numero, ? FROM chamado';
+                            connection.query(sql, data, (err, results) => {
+                                if (err) {
+                                    connection.rollback(function () {
+                                        throw err;
+                                    });
+                                }
+                                if (results) {
+                                    connection.query('SELECT * FROM chamado WHERE id = ?', results.insertId, function (err, result) {
+                                        dados[message.from].chamadoId = result[0].numero;
+                                    })
+                                }
+                                connection.release();
+                            });
+                            connection.commit(function (err) {
+                                if (err) {
+                                    connection.rollback(function () {
+                                        throw err;
+                                    });
+                                }
+                                else {
+                                    client.sendText(message.from,
+                                        `👏🏻👏🏻 Seu Chamado foi aberto com Sucesso e registrado com Nº *${getChamadoId(message.from)}* ✅ ` +
+                                        `A equipe de informática irá analisar e respondera o mais breve possivel.\n` +
+                                        `Voce podera acompanhar o andamento da solicitação , com o numero do chamado ` +
+                                        `Na *Opção 2* do Menu Principal.\n\n\n` +
+                                        `Agradecemos por utilzar nossos serviços.\n\n` +
+                                        `👋🏼👋🏼 Ate logo.`
+                                    );
+                                    dados[message.from].stage = 0;
+                                    dados[message.from].chamadoId.pop();
+                                    while (dados[message.from].itens.length > 0) {
+                                        dados[message.from].itens.pop();
+                                    }
+                                }
+                                console.log('success!');
+                            });
+                        }
+                    });
+                })
             }
             if (message.body === "*") {
                 dados[message.from].stage = 0;
-                for (let index = 0; index < dados[message.from].itens.length; index++) {
+                while (dados[message.from].itens.length > 0) {
                     dados[message.from].itens.pop();
-                    console.log(index);
                 }
                 console.log("Estagio " + dados[message.from].stage);
                 console.log(getItens(message.from));
@@ -264,9 +381,9 @@ function start(client) {
 
             if ((message.body.length >= 1) && (message.body === "!")) {
                 dados[message.from].stage = 7;
-                console.log("Estagio " + dados[message.from].stage);
-                console.log(getItens("Itens ", message.from));
-                console.log(getMidias("Midias ", message.from));
+                console.log("Estagio ", dados[message.from].stage);
+                console.log("Itens ", getItens(message.from));
+                console.log("Midias ", getMidias(message.from));
                 client.sendText(message.from,
                     "✅ Ok tudo certo para abertura do seu chamado 👋🏼👋🏼\n" +
                     "Digite #️⃣ para confirmar ou *️⃣  caso não queira mais abrir o chamado."
@@ -285,9 +402,8 @@ function start(client) {
 
                 let msgId = await message.id.toString();
                 dados[message.from].messageId.push(msgId);
-
-
                 const buffer = await client.decryptFile(message);
+                //const buffer = await client.downloadMedia(message);
                 var telefone = ((String(`${message.from}`).split('@')[0]).substr(2));
                 let date_ob = new Date();
                 let date = ("0" + date_ob.getDate()).slice(-2);
@@ -344,9 +460,9 @@ function start(client) {
             }
             if (msg.length = 2 && msg.toLowerCase() === "ok") {
                 dados[message.from].stage = 10;
-                console.log("Estagio " + dados[message.from].stage);
-                console.log(getItens("Itens ", message.from));
-                console.log(getMidias("Midias ", message.from));
+                console.log("Estagio ", dados[message.from].stage);
+                console.log("Itens ", getItens(message.from));
+                console.log("Midias ", getMidias(message.from));
                 client.sendText(message.from,
                     "✅ Ok tudo certo para abertura do seu chamado 👋🏼👋🏼\n" +
                     "Digite #️⃣ para confirmar ou *️⃣  caso não queira mais abrir o chamado."
@@ -362,34 +478,75 @@ function start(client) {
                 return
             }
             if (message.body === "#") {
-                var data = [dados[message.from].itens];
-                let sql = "INSERT INTO chamado (`data_abertura`,`status`,`num_whatsapp`,`re`,`nome`,`ramal`,`email`,`setor`,`opcao_menu`,`descricao`) VALUES ?";
-                con.executeSQLQueryParams_MySQL(sql, [data], (error, results, fields) => {
-                    if (error) {
-                        console.log(error);
-                    }
-                    else {
-                        client.sendText(message.from,
-                            "👏🏻👏🏻 Seu Chamado foi aberto com Sucesso e registrado com Nº *xxxxxx* ✅ " +
-                            "A equipe de informática irá analisar e respondera o mais breve possivel.\n" +
-                            "Voce podera acompanhar o andamento da solicitação , com o numero do chamado " +
-                            "Na *Opção 2* do Menu Principal.\n\n\n" +
-                            "Agradecemos por utilzar nossos serviços.\n\n" +
-                            "👋🏼👋🏼 Ate logo."
-                        );
-                        dados[message.from].stage = 0;
-                        for (let index = 0; index < dados[message.from].itens.length; index++) {
-                            dados[message.from].itens.pop();
+                var data = [getItens(message.from)];
+                var midias = [getMidias(message.from)];
+                con.pool.getConnection(function (err, connection) {
+                    if (err) throw err; // not connected!
+                    connection.beginTransaction(function (err) {
+                        if (err) {
+                            throw err;
                         }
-                        return
-                    }
+                        else {
+                            connection.query('INSERT INTO chamado(numero, data_abertura,' +
+                                ' status, num_whatsapp, re, nome, ramal, email, setor,' +
+                                ' opcao_menu, descricao) select max(numero) + 1 as numero, ? FROM chamado', data, function (err, result) {
+                                    if (err) {
+                                        connection.rollback(function () {
+                                            throw err;
+                                        });
+                                    }
+                                    var lastID = result.insertId;
+                                    midias.forEach(element => {
+                                        connection.query(`INSERT INTO midias(chamadoID, nome_arquivo) VALUES (${lastID}, ?)`, element, function (err, result) {
+                                            if (err) {
+                                                connection.rollback(function () {
+                                                    throw err;
+                                                });
+                                            }
+                                        });
+                                    });
+                                    connection.query('SELECT * FROM chamado WHERE id = ?', lastID, function (err, result) {
+                                        dados[message.from].chamadoId.push(result[0].numero);
+                                    })
+                                    connection.release();
+                                });
+                            connection.commit(function (err) {
+                                if (err) {
+                                    connection.rollback(function () {
+                                        throw err;
+                                    });
+                                }
+                                else {
+                                    client.sendText(message.from,
+                                        `👏🏻👏🏻 Seu Chamado foi aberto com Sucesso e registrado com *Nº ${getChamadoId(message.from)}*  ✅ ` +
+                                        `A equipe de informática irá analisar e respondera o mais breve possivel.\n` +
+                                        `Voce podera acompanhar o andamento da solicitação , com o numero do chamado ` +
+                                        `Na *Opção 2* do Menu Principal.\n\n\n` +
+                                        `Agradecemos por utilzar nossos serviços.\n\n` +
+                                        `👋🏼👋🏼 Ate logo.`
+                                    );
+                                    dados[message.from].stage = 0;
+                                    dados[message.from].chamadoId.pop();
+                                    while (dados[message.from].itens.length > 0) {
+                                        dados[message.from].itens.pop();
+                                    }
+                                    while (dados[message.from].midias.length > 0) {
+                                        dados[message.from].midias.pop();
+                                    }
+                                }
+                                console.log('Gravado com sucesso!');
+                            });
+                        }
+                    });
                 });
             }
             if (message.body === "*") {
                 dados[message.from].stage = 0;
-                for (let index = 0; index < dados[message.from].itens.length; index++) {
+                while (dados[message.from].itens.length > 0) {
                     dados[message.from].itens.pop();
-                    console.log(index);
+                }
+                while (dados[message.from].midias.length > 0) {
+                    dados[message.from].midias.pop();
                 }
                 console.log("Estagio " + dados[message.from].stage);
                 console.log(getItens(message.from));
@@ -400,8 +557,22 @@ function start(client) {
                 return
             }
         }
+        if (typeof message != "undefined") {
+            client.stopTyping(message.from);
+        }
+    });
+    client.onStateChange((state) => {
+        console.log('State changed: ', state);
+        if ('CONFLICT'.includes(state)) client.useHere();
+        if ('UNPAIRED'.includes(state)) console.log('logout');
+    });
+
+    client.onIncomingCall(async (call) => {
+        console.log(call);
+        client.sendText(call.peerJid, "Desculpe eu não atendo chamadas");
     });
 }
+
 function getStage(user) {
     if (dados[user]) {
         return dados[user].stage;
@@ -411,6 +582,7 @@ function getStage(user) {
             stage: 0,
             itens: [],
             midias: [],
+            chamadoId: [],
             messageId: [],
         };
         return dados[user].stage;
@@ -425,7 +597,7 @@ function getItens(user) {
             stage: 0,
             itens: [],
             midias: [],
-            messageId: [],
+            chamadoId: [],
         };
         return dados[user].itens;
     }
@@ -439,22 +611,22 @@ function getMidias(user) {
             stage: 0,
             itens: [],
             midias: [],
-            messageId: [],
+            chamadoId: [],
         };
         return dados[user].midias;
     }
 }
-function getMsgId(user) {
+function getChamadoId(user) {
     if (dados[user]) {
-        return dados[user].messageId;
+        return dados[user].chamadoId;
     }
     else {
         dados[user] = {
             stage: 0,
             itens: [],
             midias: [],
-            messageId: [],
+            chamadoId: [],
         };
-        return dados[user].messageId;
+        return dados[user].chamadoId;
     }
 }

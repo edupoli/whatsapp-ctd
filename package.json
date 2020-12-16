@@ -9,11 +9,12 @@
   "author": "Eduardo Policarpo",
   "license": "ISC",
   "dependencies": {
+    "@google-cloud/dialogflow": "^3.3.0",
     "fs": "0.0.1-security",
     "mysql": "^2.18.1",
     "mysql2": "^2.2.5",
     "oracledb": "^5.0.0",
     "path": "^0.12.7",
-    "venom-bot": "^2.1.2"
+    "venom-bot": "^2.2.1"
   }
 }
